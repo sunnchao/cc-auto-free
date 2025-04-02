@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 import sys
-from logger import logging
+from src.utils.logger import logging
 
 
 class Config:
@@ -37,6 +37,17 @@ class Config:
             self.imap_user = os.getenv("IMAP_USER", "").strip()
             self.imap_pass = os.getenv("IMAP_PASS", "").strip()
             self.imap_dir = os.getenv("IMAP_DIR", "inbox").strip()
+            self.imap_client_id = os.getenv("IMAP_CLIENT_ID", "").strip()
+            self.imap_refresh_token = os.getenv("IMAP_REFRESH_TOKEN", "").strip()
+            self.imap_access_token = os.getenv("IMAP_ACCESS_TOKEN", "").strip()
+            self.imap_client_secret = os.getenv("IMAP_CLIENT_SECRET", "").strip()
+            self.imap_oauth2_token_url = os.getenv("IMAP_OAUTH2_TOKEN_URL", "").strip()
+        
+        # 如果临时邮箱为 iCloud 邮箱，则需要配置 iCloud 邮箱的账号和密码
+        if self.temp_mail == "icloud":
+            self.icloud_user = os.getenv("ICLOUD_USER", "").strip()
+            self.icloud_app_password = os.getenv("ICLOUD_APP_PASSWORD", "").strip()
+            self.icloud_cookies = os.getenv("ICLOUD_COOKIES", "").strip()
 
         self.check_config()
 
@@ -61,6 +72,29 @@ class Config:
             "imap_user": self.imap_user,
             "imap_pass": self.imap_pass,
             "imap_dir": self.imap_dir,
+            "imap_client_id": self.imap_client_id,
+            "imap_refresh_token": self.imap_refresh_token,
+            "imap_access_token": self.imap_access_token,
+            "imap_client_secret": self.imap_client_secret,
+            "imap_oauth2_token_url": self.imap_oauth2_token_url,
+        }
+    
+    def get_icloud_imap(self):
+        """获取 iCloud IMAP 配置
+        
+        Returns:
+            dict or False: iCloud IMAP 配置信息，若未配置则返回 False
+        """
+        # 检查必要的 iCloud IMAP 配置是否存在
+        if not self.icloud_user or not self.icloud_app_password:
+            return False
+        
+        return {
+            "imap_server": "imap.mail.me.com",  # iCloud Mail 固定服务器
+            "imap_port": 993,                    # iCloud Mail 固定端口
+            "imap_user": self.icloud_user,            # 用户名通常是邮箱前缀
+            "imap_pass": self.icloud_app_password,            # 应用专用密码
+            "imap_dir": os.getenv('ICLOUD_FOLDER', 'INBOX').strip(),
         }
 
     def get_domain(self):
@@ -118,6 +152,18 @@ class Config:
                 raise ValueError(
                     "IMAP收件箱目录配置无效，请在 .env 文件中正确设置 IMAP_DIR"
                 )
+        # 如果使用 iCloud 邮箱，则需要配置 iCloud 邮箱的账号和密码
+        if self.temp_mail == "icloud":
+            # 基础配置检查
+            required_configs = {
+                "icloud_user": "iCloud 邮箱账号",
+                "icloud_app_password": "iCloud 邮箱密码",
+            }
+            for key, name in required_configs.items():
+                if not self.check_is_valid(getattr(self, key)):
+                    raise ValueError(f"{name}未配置，请在 .env 文件中设置 {key.upper()}")
+
+                raise ValueError("iCloud 邮箱密码未配置，请在 .env 文件中设置 ICLOUD_APP_PASSWORD")
 
     def check_is_valid(self, value):
         """检查配置项是否有效

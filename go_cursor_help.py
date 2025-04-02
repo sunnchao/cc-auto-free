@@ -1,7 +1,7 @@
 import platform
 import os
 import subprocess
-from logger import logging
+from src.utils.logger import logging
 
 def go_cursor_help():
     system = platform.system()

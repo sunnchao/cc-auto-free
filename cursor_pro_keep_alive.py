@@ -18,11 +18,11 @@ import time
 import random
 from cursor_auth_manager import CursorAuthManager
 import os
-from logger import logging
-from browser_utils import BrowserManager
+from src.utils.logger import logging
+from src.utils.browser_utils import BrowserManager
 from get_email_code import EmailVerificationHandler
 from logo import print_logo
-from config import Config
+from src.utils.config import Config
 from datetime import datetime
 
 # 定义 EMOJI 字典
@@ -255,7 +255,28 @@ def sign_up_account(browser, tab):
 
     if tab.ele("This email is not available."):
         logging.error("注册失败：邮箱已被使用")
-        return False
+        # 跳转到登录页 尝试登录一次
+        logging.info("跳转到登录页 尝试登录一次")
+        tab.get(login_url)
+        if tab.ele("@name=email"):
+            tab.actions.click("@name=email").input(account)
+            logging.info(f"已输入邮箱: {account}")
+            time.sleep(random.uniform(1, 3))
+            tab.actions.click("@type=submit")
+            
+            handle_turnstile(tab)
+            try:
+                if tab.ele("@name=password"):
+                    logging.info("正在设置密码...")
+                    tab.ele("@name=password").input(password)
+                    time.sleep(random.uniform(1, 3))
+
+                    logging.info("提交密码...")
+                    tab.ele("@type=submit").click()
+                    logging.info("密码设置完成，等待系统响应...")
+            except Exception as e:
+                logging.error(f"密码设置失败: {str(e)}")
+                return False
 
     handle_turnstile(tab)
 
@@ -332,6 +353,10 @@ class EmailGenerator:
         self.default_password = password
         self.default_first_name = self.generate_random_name()
         self.default_last_name = self.generate_random_name()
+        if configInstance.get_imap() != False:
+            self.temp_mail = "null"
+            self.default_imap_user = configInstance.get_imap()['imap_user']
+            self.default_imap_pass = configInstance.get_imap()['imap_pass']
 
     def load_names(self):
         with open("names-dataset.txt", "r") as file:
@@ -343,15 +368,23 @@ class EmailGenerator:
 
     def generate_email(self, length=4):
         """生成随机邮箱地址"""
+        if self.temp_mail == "null":
+            return f"{self.default_imap_user}"  #
         length = random.randint(0, length)  # 生成0到length之间的随机整数
         timestamp = str(int(time.time()))[-length:]  # 使用时间戳后length位
         return f"{self.default_first_name}{timestamp}@{self.domain}"  #
+
+    def generate_password(self):
+        """生成随机密码"""
+        if self.temp_mail == "null":
+            return f"{self.default_imap_pass}"  #
+        return self.default_password
 
     def get_account_info(self):
         """获取完整的账号信息"""
         return {
             "email": self.generate_email(),
-            "password": self.default_password,
+            "password": self.generate_password(),
             "first_name": self.default_first_name,
             "last_name": self.default_last_name,
         }
@@ -462,7 +495,7 @@ if __name__ == "__main__":
         first_name = email_generator.default_first_name
         last_name = email_generator.default_last_name
         account = email_generator.generate_email()
-        password = email_generator.default_password
+        password = email_generator.generate_password()
 
         logging.info(f"生成的邮箱账号: {account}")
 

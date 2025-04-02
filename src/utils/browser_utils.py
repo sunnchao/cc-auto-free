@@ -51,13 +51,13 @@ class BrowserManager:
 
         return co
 
-    def _get_extension_path(self,exname='turnstilePatch'):
+    def _get_extension_path(self, exname="turnstilePatch"):
         """获取插件路径"""
         root_dir = os.getcwd()
-        extension_path = os.path.join(root_dir, exname)
+        extension_path = os.path.join(root_dir, "src", exname)
 
         if hasattr(sys, "_MEIPASS"):
-            extension_path = os.path.join(sys._MEIPASS, exname)
+            extension_path = os.path.join(sys._MEIPASS, "src", exname)
 
         if not os.path.exists(extension_path):
             raise FileNotFoundError(f"插件不存在: {extension_path}")

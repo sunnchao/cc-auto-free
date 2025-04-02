@@ -1,5 +1,5 @@
 import psutil
-from logger import logging  
+from src.utils.logger import logging  
 import time
 
 def ExitCursor(timeout=5):

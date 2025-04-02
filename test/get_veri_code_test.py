@@ -9,11 +9,11 @@ import os
 def get_extension_path():
     """获取插件路径"""
     root_dir = os.getcwd()
-    extension_path = os.path.join(root_dir, "turnstilePatch")
+    extension_path = os.path.join(root_dir, "src", "turnstilePatch")
 
     if hasattr(sys, "_MEIPASS"):
         print("运行在打包环境中")
-        extension_path = os.path.join(sys._MEIPASS, "turnstilePatch")
+        extension_path = os.path.join(sys._MEIPASS, "src", "turnstilePatch")
 
     print(f"尝试加载插件路径: {extension_path}")
 

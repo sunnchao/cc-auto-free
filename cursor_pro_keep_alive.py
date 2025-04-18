@@ -10,6 +10,7 @@ from exit_cursor import ExitCursor
 import go_cursor_help
 import patch_cursor_get_machine_id
 from reset_machine import MachineIDResetter
+from src.utils.db_handler import save_account_info_sync
 
 os.environ["PYTHONVERBOSE"] = "0"
 os.environ["PYINSTALLER_VERBOSE"] = "0"
@@ -310,8 +311,11 @@ def sign_up_account(browser, tab):
         logging.info(f"等待系统处理中... 剩余 {wait_time-i} 秒")
         time.sleep(1)
 
+    # 获取账户使用额度信息
     logging.info("正在获取账户信息...")
     tab.get(settings_url)
+    usage_info = "未知"
+    
     try:
         usage_selector = (
             "css:div.col-span-2 > div > div > div > div > "
@@ -328,11 +332,24 @@ def sign_up_account(browser, tab):
             )
     except Exception as e:
         logging.error(f"获取账户额度信息失败: {str(e)}")
-
-    logging.info("\n=== 注册完成 ===")
-    account_info = f"Cursor 账号信息:\n邮箱: {account}\n密码: {password}"
-    logging.info(account_info)
+ 
     time.sleep(5)
+    logging.info("正在获取会话令牌...")
+
+    token = get_cursor_session_token(tab)
+    if token: 
+        logging.info("\n=== 注册完成 ===")
+        account_info = f"Cursor 账号信息:\n邮箱: {account}\n密码: {password}\nToken: {token}"
+        logging.info(account_info)
+        
+        # 将账户信息保存到数据库
+        logging.info("正在将账户信息保存到数据库...")
+        save_result = save_account_info_sync(account, password, token, usage_info)
+        if save_result:
+            logging.info("账户信息已成功保存到数据库")
+        else:
+            logging.error("账户信息保存到数据库失败")
+    
     return True
 
 
@@ -419,49 +436,34 @@ def reset_machine_id(greater_than_0_45):
     else:
         MachineIDResetter().reset_machine_ids()
 
-
-def print_end_message():
-    logging.info("\n\n\n\n\n")
-    logging.info("=" * 30)
-    logging.info("所有操作已完成")
-    logging.info("\n=== 获取更多信息 ===")
-    logging.info("📺 B站UP主: 想回家的前端")
-    logging.info("🔥 公众号: code 未来")
-    logging.info("=" * 30)
-    logging.info(
-        "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
-    )
-
-
 if __name__ == "__main__":
     print_logo()
     greater_than_0_45 = check_cursor_version()
     browser_manager = None
     try:
         logging.info("\n=== 初始化程序 ===")
-        ExitCursor()
+        # ExitCursor()
 
         # 提示用户选择操作模式
-        print("\n请选择操作模式:")
-        print("1. 仅重置机器码")
-        print("2. 完整注册流程")
+        # print("\n请选择操作模式:")
+        # print("1. 仅重置机器码")
+        # print("2. 完整注册流程")
 
-        while True:
-            try:
-                choice = int(input("请输入选项 (1 或 2): ").strip())
-                if choice in [1, 2]:
-                    break
-                else:
-                    print("无效的选项,请重新输入")
-            except ValueError:
-                print("请输入有效的数字")
-
-        if choice == 1:
-            # 仅执行重置机器码
-            reset_machine_id(greater_than_0_45)
-            logging.info("机器码重置完成")
-            print_end_message()
-            sys.exit(0)
+        # while True:
+        #     try:
+        #         choice = int(input("请输入选项 (1 或 2): ").strip())
+        #         if choice in [1, 2]:
+        #             break
+        #         else:
+        #             print("无效的选项,请重新输入")
+        #     except ValueError:
+        #         print("请输入有效的数字")
+        #
+        # if choice == 1:
+        #     # 仅执行重置机器码
+        #     reset_machine_id(greater_than_0_45)
+        #     logging.info("机器码重置完成")
+        #     sys.exit(0)
 
         logging.info("正在初始化浏览器...")
 
@@ -514,9 +516,8 @@ if __name__ == "__main__":
 
         if sign_up_account(browser, tab):
             logging.info("正在获取会话令牌...")
-            token = get_cursor_session_token(tab)
-            if token:
-                logging.info(f"更新认证信息...{token}")
+            
+            if True:
                 # update_cursor_auth(
                 #     email=account, access_token=token, refresh_token=token
                 # )
@@ -526,7 +527,6 @@ if __name__ == "__main__":
                 # logging.info("重置机器码...")
                 # reset_machine_id(greater_than_0_45)
                 logging.info("所有操作已完成")
-                print_end_message()
             else:
                 logging.error("获取会话令牌失败，注册流程未完成")
 

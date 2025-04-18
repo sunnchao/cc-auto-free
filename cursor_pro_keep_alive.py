@@ -10,6 +10,7 @@ from exit_cursor import ExitCursor
 import go_cursor_help
 import patch_cursor_get_machine_id
 from reset_machine import MachineIDResetter
+from language import language, get_translation
 from src.utils.db_handler import save_account_info_sync
 
 os.environ["PYTHONVERBOSE"] = "0"
@@ -26,12 +27,12 @@ from logo import print_logo
 from src.utils.config import Config
 from datetime import datetime
 
-# 定义 EMOJI 字典
-EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
+# Define EMOJI dictionary
+EMOJI = {"ERROR": get_translation("error"), "WARNING": get_translation("warning"), "INFO": get_translation("info")}
 
 
 class VerificationStatus(Enum):
-    """验证状态枚举"""
+    """Verification status enum"""
 
     PASSWORD_PAGE = "@name=password"
     CAPTCHA_PAGE = "@data-index=0"
@@ -39,27 +40,27 @@ class VerificationStatus(Enum):
 
 
 class TurnstileError(Exception):
-    """Turnstile 验证相关异常"""
+    """Turnstile verification related exception"""
 
     pass
 
 
 def save_screenshot(tab, stage: str, timestamp: bool = True) -> None:
     """
-    保存页面截图
+    Save a screenshot of the page
 
     Args:
-        tab: 浏览器标签页对象
-        stage: 截图阶段标识
-        timestamp: 是否添加时间戳
+        tab: Browser tab object
+        stage: Stage identifier for the screenshot
+        timestamp: Whether to add a timestamp
     """
     try:
-        # 创建 screenshots 目录
+        # Create screenshots directory
         screenshot_dir = "screenshots"
         if not os.path.exists(screenshot_dir):
             os.makedirs(screenshot_dir)
 
-        # 生成文件名
+        # Generate filename
         if timestamp:
             filename = f"turnstile_{stage}_{int(time.time())}.png"
         else:
@@ -67,43 +68,43 @@ def save_screenshot(tab, stage: str, timestamp: bool = True) -> None:
 
         filepath = os.path.join(screenshot_dir, filename)
 
-        # 保存截图
+        # Save screenshot
         tab.get_screenshot(filepath)
-        logging.debug(f"截图已保存: {filepath}")
+        logging.debug(f"Screenshot saved: {filepath}")
     except Exception as e:
-        logging.warning(f"截图保存失败: {str(e)}")
+        logging.warning(f"Failed to save screenshot: {str(e)}")
 
 
 def check_verification_success(tab) -> Optional[VerificationStatus]:
     """
-    检查验证是否成功
+    Check if verification was successful
 
     Returns:
-        VerificationStatus: 验证成功时返回对应状态，失败返回 None
+        VerificationStatus: The corresponding status if successful, None if failed
     """
     for status in VerificationStatus:
         if tab.ele(status.value):
-            logging.info(f"验证成功 - 已到达{status.name}页面")
+            logging.info(get_translation("verification_success", status=status.name))
             return status
     return None
 
 
 def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) -> bool:
     """
-    处理 Turnstile 验证
+    Handle Turnstile verification
 
     Args:
-        tab: 浏览器标签页对象
-        max_retries: 最大重试次数
-        retry_interval: 重试间隔时间范围(最小值, 最大值)
+        tab: Browser tab object
+        max_retries: Maximum number of retries
+        retry_interval: Retry interval range (min, max)
 
     Returns:
-        bool: 验证是否成功
+        bool: Whether verification was successful
 
     Raises:
-        TurnstileError: 验证过程中出现异常
+        TurnstileError: Exception during verification process
     """
-    logging.info("正在检测 Turnstile 验证...")
+    logging.info(get_translation("detecting_turnstile"))
     save_screenshot(tab, "start")
 
     retry_count = 0
@@ -111,10 +112,10 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
     try:
         while retry_count < max_retries:
             retry_count += 1
-            logging.debug(f"第 {retry_count} 次尝试验证")
+            logging.debug(get_translation("retry_verification", count=retry_count))
 
             try:
-                # 定位验证框元素
+                # Locate verification frame element
                 challenge_check = (
                     tab.ele("@id=cf-turnstile", timeout=2)
                     .child()
@@ -124,41 +125,41 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
                 )
 
                 if challenge_check:
-                    logging.info("检测到 Turnstile 验证框，开始处理...")
-                    # 随机延时后点击验证
+                    logging.info(get_translation("detected_turnstile"))
+                    # Random delay before clicking verification
                     time.sleep(random.uniform(1, 3))
                     challenge_check.click()
                     time.sleep(2)
 
-                    # 保存验证后的截图
+                    # Save screenshot after verification
                     save_screenshot(tab, "clicked")
 
-                    # 检查验证结果
+                    # Check verification result
                     if check_verification_success(tab):
-                        logging.info("Turnstile 验证通过")
+                        logging.info(get_translation("turnstile_verification_passed"))
                         save_screenshot(tab, "success")
                         return True
 
             except Exception as e:
-                logging.debug(f"当前尝试未成功: {str(e)}")
+                logging.debug(f"Current attempt unsuccessful: {str(e)}")
 
-            # 检查是否已经验证成功
+            # Check if already verified
             if check_verification_success(tab):
                 return True
 
-            # 随机延时后继续下一次尝试
+            # Random delay before next attempt
             time.sleep(random.uniform(*retry_interval))
 
-        # 超出最大重试次数
-        logging.error(f"验证失败 - 已达到最大重试次数 {max_retries}")
+        # Exceeded maximum retries
+        logging.error(get_translation("verification_failed_max_retries", max_retries=max_retries))
         logging.error(
-            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+            "Please visit the open source project for more information: https://github.com/chengazhen/cursor-auto-free"
         )
         save_screenshot(tab, "failed")
         return False
 
     except Exception as e:
-        error_msg = f"Turnstile 验证过程发生异常: {str(e)}"
+        error_msg = get_translation("turnstile_exception", error=str(e))
         logging.error(error_msg)
         save_screenshot(tab, "error")
         raise TurnstileError(error_msg)
@@ -166,13 +167,13 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
 
 def get_cursor_session_token(tab, max_attempts=3, retry_interval=2):
     """
-    获取Cursor会话token，带有重试机制
-    :param tab: 浏览器标签页
-    :param max_attempts: 最大尝试次数
-    :param retry_interval: 重试间隔(秒)
-    :return: session token 或 None
+    Get Cursor session token with retry mechanism
+    :param tab: Browser tab
+    :param max_attempts: Maximum number of attempts
+    :param retry_interval: Retry interval (seconds)
+    :return: Session token or None
     """
-    logging.info("开始获取cookie")
+    logging.info(get_translation("getting_cookie"))
     attempts = 0
 
     while attempts < max_attempts:
@@ -185,19 +186,19 @@ def get_cursor_session_token(tab, max_attempts=3, retry_interval=2):
             attempts += 1
             if attempts < max_attempts:
                 logging.warning(
-                    f"第 {attempts} 次尝试未获取到CursorSessionToken，{retry_interval}秒后重试..."
+                    get_translation("cookie_attempt_failed", attempts=attempts, retry_interval=retry_interval)
                 )
                 time.sleep(retry_interval)
             else:
                 logging.error(
-                    f"已达到最大尝试次数({max_attempts})，获取CursorSessionToken失败"
+                    get_translation("cookie_max_attempts", max_attempts=max_attempts)
                 )
 
         except Exception as e:
-            logging.error(f"获取cookie失败: {str(e)}")
+            logging.error(get_translation("cookie_failure", error=str(e)))
             attempts += 1
             if attempts < max_attempts:
-                logging.info(f"将在 {retry_interval} 秒后重试...")
+                logging.info(get_translation("retry_in_seconds", seconds=retry_interval))
                 time.sleep(retry_interval)
 
     return None
@@ -205,57 +206,57 @@ def get_cursor_session_token(tab, max_attempts=3, retry_interval=2):
 
 def update_cursor_auth(email=None, access_token=None, refresh_token=None):
     """
-    更新Cursor的认证信息的便捷函数
+    Update Cursor authentication information
     """
     auth_manager = CursorAuthManager()
     return auth_manager.update_auth(email, access_token, refresh_token)
 
 
 def sign_up_account(browser, tab):
-    logging.info("=== 开始注册账号流程 ===")
-    logging.info(f"正在访问注册页面: {sign_up_url}")
+    logging.info(get_translation("start_account_registration"))
+    logging.info(get_translation("visiting_registration_page", url=sign_up_url))
     tab.get(sign_up_url)
 
     try:
         if tab.ele("@name=first_name"):
-            logging.info("正在填写个人信息...")
+            logging.info(get_translation("filling_personal_info"))
             tab.actions.click("@name=first_name").input(first_name)
-            logging.info(f"已输入名字: {first_name}")
+            logging.info(get_translation("input_first_name", name=first_name))
             time.sleep(random.uniform(1, 3))
 
             tab.actions.click("@name=last_name").input(last_name)
-            logging.info(f"已输入姓氏: {last_name}")
+            logging.info(get_translation("input_last_name", name=last_name))
             time.sleep(random.uniform(1, 3))
 
             tab.actions.click("@name=email").input(account)
-            logging.info(f"已输入邮箱: {account}")
+            logging.info(get_translation("input_email", email=account))
             time.sleep(random.uniform(1, 3))
 
-            logging.info("提交个人信息...")
+            logging.info(get_translation("submitting_personal_info"))
             tab.actions.click("@type=submit")
 
     except Exception as e:
-        logging.error(f"注册页面访问失败: {str(e)}")
+        logging.error(get_translation("registration_page_access_failed", error=str(e)))
         return False
 
     handle_turnstile(tab)
 
     try:
         if tab.ele("@name=password"):
-            logging.info("正在设置密码...")
+            logging.info(get_translation("setting_password"))
             tab.ele("@name=password").input(password)
             time.sleep(random.uniform(1, 3))
 
-            logging.info("提交密码...")
+            logging.info(get_translation("submitting_password"))
             tab.ele("@type=submit").click()
-            logging.info("密码设置完成，等待系统响应...")
+            logging.info(get_translation("password_setup_complete"))
 
     except Exception as e:
-        logging.error(f"密码设置失败: {str(e)}")
+        logging.error(get_translation("password_setup_failed", error=str(e)))
         return False
 
     if tab.ele("This email is not available."):
-        logging.error("注册失败：邮箱已被使用")
+        logging.error(get_translation("registration_failed_email_used"))
         # 跳转到登录页 尝试登录一次
         logging.info("跳转到登录页 尝试登录一次")
         tab.get(login_url)
@@ -264,7 +265,7 @@ def sign_up_account(browser, tab):
             logging.info(f"已输入邮箱: {account}")
             time.sleep(random.uniform(1, 3))
             tab.actions.click("@type=submit")
-            
+
             handle_turnstile(tab)
             try:
                 if tab.ele("@name=password"):
@@ -284,38 +285,38 @@ def sign_up_account(browser, tab):
     while True:
         try:
             if tab.ele("Account Settings"):
-                logging.info("注册成功 - 已进入账户设置页面")
+                logging.info(get_translation("registration_success"))
                 break
             if tab.ele("@data-index=0"):
-                logging.info("正在获取邮箱验证码...")
+                logging.info(get_translation("getting_email_verification"))
                 code = email_handler.get_verification_code()
                 if not code:
-                    logging.error("获取验证码失败")
+                    logging.error(get_translation("verification_code_failure"))
                     return False
 
-                logging.info(f"成功获取验证码: {code}")
-                logging.info("正在输入验证码...")
+                logging.info(get_translation("verification_code_success", code=code))
+                logging.info(get_translation("inputting_verification_code"))
                 i = 0
                 for digit in code:
                     tab.ele(f"@data-index={i}").input(digit)
                     time.sleep(random.uniform(0.1, 0.3))
                     i += 1
-                logging.info("验证码输入完成")
+                logging.info(get_translation("verification_code_input_complete"))
                 break
         except Exception as e:
-            logging.error(f"验证码处理过程出错: {str(e)}")
+            logging.error(get_translation("verification_code_process_error", error=str(e)))
 
     handle_turnstile(tab)
     wait_time = random.randint(3, 6)
     for i in range(wait_time):
-        logging.info(f"等待系统处理中... 剩余 {wait_time-i} 秒")
+        logging.info(get_translation("waiting_system_processing", seconds=wait_time-i))
         time.sleep(1)
 
     # 获取账户使用额度信息
-    logging.info("正在获取账户信息...")
+    logging.info(get_translation("getting_account_info"))
     tab.get(settings_url)
     usage_info = "未知"
-    
+
     try:
         usage_selector = (
             "css:div.col-span-2 > div > div > div > div > "
@@ -326,22 +327,22 @@ def sign_up_account(browser, tab):
         if usage_ele:
             usage_info = usage_ele.text
             total_usage = usage_info.split("/")[-1].strip()
-            logging.info(f"账户可用额度上限: {total_usage}")
+            logging.info(get_translation("account_usage_limit", limit=total_usage))
             logging.info(
-                "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                "Please visit the open source project for more information: https://github.com/chengazhen/cursor-auto-free"
             )
     except Exception as e:
-        logging.error(f"获取账户额度信息失败: {str(e)}")
- 
+        logging.error(get_translation("account_usage_info_failure", error=str(e)))
+
     time.sleep(5)
     logging.info("正在获取会话令牌...")
 
     token = get_cursor_session_token(tab)
-    if token: 
-        logging.info("\n=== 注册完成 ===")
+    if token:
+        logging.info(get_translation("registration_complete"))
         account_info = f"Cursor 账号信息:\n邮箱: {account}\n密码: {password}\nToken: {token}"
         logging.info(account_info)
-        
+
         # 将账户信息保存到数据库
         logging.info("正在将账户信息保存到数据库...")
         save_result = save_account_info_sync(account, password, token, usage_info)
@@ -349,7 +350,7 @@ def sign_up_account(browser, tab):
             logging.info("账户信息已成功保存到数据库")
         else:
             logging.error("账户信息保存到数据库失败")
-    
+
     return True
 
 
@@ -376,11 +377,17 @@ class EmailGenerator:
             self.default_imap_pass = configInstance.get_imap()['imap_pass']
 
     def load_names(self):
-        with open("names-dataset.txt", "r") as file:
-            return file.read().split()
+        try:
+            with open("names-dataset.txt", "r") as file:
+                return file.read().split()
+        except FileNotFoundError:
+            logging.warning(get_translation("names_file_not_found"))
+            # Fallback to a small set of default names if the file is not found
+            return ["John", "Jane", "Alex", "Emma", "Michael", "Olivia", "William", "Sophia",
+                    "James", "Isabella", "Robert", "Mia", "David", "Charlotte", "Joseph", "Amelia"]
 
     def generate_random_name(self):
-        """生成随机用户名"""
+        """Generate a random username"""
         return random.choice(self.names)
 
     def generate_email(self, length=4):
@@ -398,7 +405,7 @@ class EmailGenerator:
         return self.default_password
 
     def get_account_info(self):
-        """获取完整的账号信息"""
+        """Get complete account information"""
         return {
             "email": self.generate_email(),
             "password": self.generate_password(),
@@ -408,21 +415,21 @@ class EmailGenerator:
 
 
 def get_user_agent():
-    """获取user_agent"""
+    """Get user_agent"""
     try:
-        # 使用JavaScript获取user agent
+        # Use JavaScript to get user agent
         browser_manager = BrowserManager()
         browser = browser_manager.init_browser()
         user_agent = browser.latest_tab.run_js("return navigator.userAgent")
         browser_manager.quit()
         return user_agent
     except Exception as e:
-        logging.error(f"获取user agent失败: {str(e)}")
+        logging.error(f"Failed to get user agent: {str(e)}")
         return None
 
 
 def check_cursor_version():
-    """检查cursor版本"""
+    """Check cursor version"""
     pkg_path, main_path = patch_cursor_get_machine_id.get_cursor_paths()
     with open(pkg_path, "r", encoding="utf-8") as f:
         version = json.load(f)["version"]
@@ -431,13 +438,18 @@ def check_cursor_version():
 
 def reset_machine_id(greater_than_0_45):
     if greater_than_0_45:
-        # 提示请手动执行脚本 https://github.com/chengazhen/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
+        # Prompt to manually execute script https://github.com/chengazhen/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
         go_cursor_help.go_cursor_help()
     else:
         MachineIDResetter().reset_machine_ids()
 
 if __name__ == "__main__":
     print_logo()
+
+    # Add language selection
+    print("\n")
+    language.select_language_prompt()
+
     greater_than_0_45 = check_cursor_version()
     browser_manager = None
     try:
@@ -445,9 +457,9 @@ if __name__ == "__main__":
         # ExitCursor()
 
         # 提示用户选择操作模式
-        # print("\n请选择操作模式:")
-        # print("1. 仅重置机器码")
-        # print("2. 完整注册流程")
+        # print(get_translation("select_operation_mode"))
+        # print(get_translation("reset_machine_code_only"))
+        # print(get_translation("complete_registration"))
 
         # while True:
         #     try:
@@ -465,33 +477,33 @@ if __name__ == "__main__":
         #     logging.info("机器码重置完成")
         #     sys.exit(0)
 
-        logging.info("正在初始化浏览器...")
+        logging.info(get_translation("initializing_browser"))
 
-        # 获取user_agent
+        # Get user_agent
         user_agent = get_user_agent()
         if not user_agent:
-            logging.error("获取user agent失败，使用默认值")
+            logging.error(get_translation("get_user_agent_failed"))
             user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        # 剔除user_agent中的"HeadlessChrome"
+        # Remove "HeadlessChrome" from user_agent
         user_agent = user_agent.replace("HeadlessChrome", "Chrome")
 
         browser_manager = BrowserManager()
         browser = browser_manager.init_browser(user_agent)
 
-        # 获取并打印浏览器的user-agent
+        # Get and print browser's user-agent
         user_agent = browser.latest_tab.run_js("return navigator.userAgent")
 
         logging.info(
-            "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+            "Please visit the open source project for more information: https://github.com/chengazhen/cursor-auto-free"
         )
-        logging.info("\n=== 配置信息 ===")
+        logging.info(get_translation("configuration_info"))
         login_url = "https://authenticator.cursor.sh"
         sign_up_url = "https://authenticator.cursor.sh/sign-up"
         settings_url = "https://www.cursor.com/settings"
         mail_url = "https://tempmail.plus"
 
-        logging.info("正在生成随机账号信息...")
+        logging.info(get_translation("generating_random_account"))
 
         email_generator = EmailGenerator()
         first_name = email_generator.default_first_name
@@ -499,9 +511,9 @@ if __name__ == "__main__":
         account = email_generator.generate_email()
         password = email_generator.generate_password()
 
-        logging.info(f"生成的邮箱账号: {account}")
+        logging.info(get_translation("generated_email_account", email=account))
 
-        logging.info("正在初始化邮箱验证模块...")
+        logging.info(get_translation("initializing_email_verification"))
         email_handler = EmailVerificationHandler(account)
 
         auto_update_cursor_auth = True
@@ -510,13 +522,13 @@ if __name__ == "__main__":
 
         tab.run_js("try { turnstile.reset() } catch(e) { }")
 
-        logging.info("\n=== 开始注册流程 ===")
-        logging.info(f"正在访问登录页面: {login_url}")
+        logging.info(get_translation("starting_registration"))
+        logging.info(get_translation("visiting_login_page", url=login_url))
         tab.get(login_url)
 
         if sign_up_account(browser, tab):
-            logging.info("正在获取会话令牌...")
-            
+            logging.info(get_translation("getting_session_token"))
+
             if True:
                 # update_cursor_auth(
                 #     email=account, access_token=token, refresh_token=token
@@ -524,18 +536,15 @@ if __name__ == "__main__":
                 # logging.info(
                 #     "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
                 # )
-                # logging.info("重置机器码...")
+                # logging.info(get_translation("resetting_machine_code"))
                 # reset_machine_id(greater_than_0_45)
-                logging.info("所有操作已完成")
+                logging.info(get_translation("all_operations_completed"))
             else:
-                logging.error("获取会话令牌失败，注册流程未完成")
+                logging.error(get_translation("session_token_failed"))
 
     except Exception as e:
-        logging.error(f"程序执行出现错误: {str(e)}")
-        import traceback
-
-        logging.error(traceback.format_exc())
+        logging.error(get_translation("program_error", error=str(e)))
     finally:
         if browser_manager:
             browser_manager.quit()
-        input("\n程序执行完毕，按回车键退出...")
+        input(get_translation("program_exit_message"))

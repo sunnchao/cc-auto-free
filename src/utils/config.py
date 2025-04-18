@@ -15,7 +15,7 @@ class Config:
             application_path = os.path.dirname(os.path.abspath(__file__))
 
         # 指定 .env 文件的路径
-        dotenv_path = os.path.join(application_path, ".env")
+        dotenv_path = os.path.join(application_path, "..", "..", ".env")
 
         if not os.path.exists(dotenv_path):
             raise FileNotFoundError(f"文件 {dotenv_path} 不存在")

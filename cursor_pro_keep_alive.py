@@ -516,15 +516,15 @@ if __name__ == "__main__":
             logging.info("正在获取会话令牌...")
             token = get_cursor_session_token(tab)
             if token:
-                logging.info("更新认证信息...")
-                update_cursor_auth(
-                    email=account, access_token=token, refresh_token=token
-                )
-                logging.info(
-                    "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
-                )
-                logging.info("重置机器码...")
-                reset_machine_id(greater_than_0_45)
+                logging.info(f"更新认证信息...{token}")
+                # update_cursor_auth(
+                #     email=account, access_token=token, refresh_token=token
+                # )
+                # logging.info(
+                #     "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                # )
+                # logging.info("重置机器码...")
+                # reset_machine_id(greater_than_0_45)
                 logging.info("所有操作已完成")
                 print_end_message()
             else:

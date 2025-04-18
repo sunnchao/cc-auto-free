@@ -448,7 +448,7 @@ if __name__ == "__main__":
 
     # Add language selection
     print("\n")
-    language.select_language_prompt()
+    # language.select_language_prompt()
 
     greater_than_0_45 = check_cursor_version()
     browser_manager = None

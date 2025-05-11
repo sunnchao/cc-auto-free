@@ -340,7 +340,7 @@ def sign_up_account(browser, tab):
     token = get_cursor_session_token(tab)
     if token:
         logging.info(get_translation("registration_complete"))
-        account_info = f"Cursor 账号信息:\n邮箱: {account}\n密码: {password}\nToken: {token}"
+        account_info = f"Cursor 账号信息:\n邮箱:\n{account}\n密码:\n{password}\nToken:\n{token}"
         logging.info(account_info)
 
         # 将账户信息保存到数据库

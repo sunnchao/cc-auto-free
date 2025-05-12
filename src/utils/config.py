@@ -3,7 +3,8 @@ import os
 import sys
 from src.utils.logger import logging
 from language import get_translation
-
+import requests
+from typing import Dict, List, Tuple
 
 class Config:
     def __init__(self):
@@ -64,9 +65,48 @@ class Config:
 
         return self.temp_mail_ext
 
-    def get_imap(self):
+    def get_imap(self, email_type="outlook"):
         if not self.imap:
             return False
+        # self.base_url = os.getenv("EMAIL_APU_BASEURL", "").strip()
+        # self.api_key = os.getenv("EMAIL_API_KEY", "").strip()
+        
+        # try:
+        #     params = {
+        #         "card": self.api_key,
+        #         "shuliang": 1,
+        #         "leixing": email_type
+        #     }
+            
+        #     response = requests.get(f"{self.base_url}/huoqu", params=params)
+            
+        #     if response.status_code == 200:
+        #         # Parse response which is in format: email----password\nemail----password
+        #         accounts = []
+        #         logging.info(f"Received response: {response.text}")
+        #         for line in response.text.strip().split('\n'):
+        #             if '----' in line:
+        #                 email, password, imap_refresh_token, imap_client_id = line.split('----', 3)
+        #                 accounts.append({
+        #                     "imap_server": "imap.shanyouxiang.com",
+        #                     "imap_port": 993,
+        #                     "imap_user": email,
+        #                     "imap_pass": password,
+        #                     "imap_refresh_token": imap_refresh_token,
+        #                     "imap_client_id": imap_client_id
+        #                 })
+                
+        #         if not accounts:
+        #             logging.error("No email accounts received from API")
+                
+        #         return accounts
+        #     else:
+        #         logging.error(f"Failed to fetch emails: {response.status_code}")
+        #         return []
+                
+        # except Exception as e:
+        #     logging.error(f"Email fetch error: {str(e)}")
+        
         return {
             "imap_server": self.imap_server,
             "imap_port": self.imap_port,
@@ -135,10 +175,10 @@ class Config:
         else:
             # IMAP 模式
             imap_configs = {
-                "imap_server": "imap_server_not_configured",
-                "imap_port": "imap_port_not_configured",
-                "imap_user": "imap_user_not_configured",
-                "imap_pass": "imap_pass_not_configured",
+                # "imap_server": "imap_server_not_configured",
+                # "imap_port": "imap_port_not_configured",
+                # "imap_user": "imap_user_not_configured",
+                # "imap_pass": "imap_pass_not_configured",
             }
 
             for key, error_key in imap_configs.items():

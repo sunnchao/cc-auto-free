@@ -11,7 +11,6 @@ import go_cursor_help
 import patch_cursor_get_machine_id
 from reset_machine import MachineIDResetter
 from language import language, get_translation
-from src.utils.db_handler import save_account_info_sync
 
 os.environ["PYTHONVERBOSE"] = "0"
 os.environ["PYINSTALLER_VERBOSE"] = "0"
@@ -30,6 +29,10 @@ from datetime import datetime
 # Define EMOJI dictionary
 EMOJI = {"ERROR": get_translation("error"), "WARNING": get_translation("warning"), "INFO": get_translation("info")}
 
+# Create accounts directory if it doesn't exist
+accounts_dir = "accounts"
+if not os.path.exists(accounts_dir):
+    os.makedirs(accounts_dir)
 
 class VerificationStatus(Enum):
     """Verification status enum"""
@@ -343,13 +346,13 @@ def sign_up_account(browser, tab):
         account_info = f"Cursor 账号信息:\n邮箱:\n{account}\n密码:\n{password}\nToken:\n{token}"
         logging.info(account_info)
 
-        # 将账户信息保存到数据库
-        logging.info("正在将账户信息保存到数据库...")
-        save_result = save_account_info_sync(account, password, token, usage_info)
+        # 将账户信息保存到文件
+        logging.info("正在将账户信息保存到文件...")
+        save_result = save_account_info_to_file(account, password, token, usage_info)
         if save_result:
-            logging.info("账户信息已成功保存到数据库")
+            logging.info(f"账户信息已成功保存到文件: {accounts_dir}/")
         else:
-            logging.error("账户信息保存到数据库失败")
+            logging.error("账户信息保存到文件失败")
 
     return True
 
@@ -442,6 +445,43 @@ def reset_machine_id(greater_than_0_45):
         go_cursor_help.go_cursor_help()
     else:
         MachineIDResetter().reset_machine_ids()
+
+
+def save_account_info_to_file(email, password, token, usage_info):
+    """
+    Save account information to a file in the accounts directory
+    
+    Args:
+        email: Account email
+        password: Account password
+        token: Session token
+        usage_info: Usage information
+        
+    Returns:
+        bool: Whether the save was successful
+    """
+    try:
+        timestamp = int(time.time())
+        filename = f"{timestamp}.txt"
+        filepath = os.path.join(accounts_dir, filename)
+        
+        account_info = (
+            f"Cursor Account Information:\n"
+            f"Email: {email}\n"
+            f"Password: {password}\n"
+            f"Token: {token}\n"
+            f"Usage Info: {usage_info}\n"
+            f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        with open(filepath, 'w') as f:
+            f.write(account_info)
+        
+        return True
+    except Exception as e:
+        logging.error(f"Failed to save account info to file: {str(e)}")
+        return False
+
 
 if __name__ == "__main__":
     print_logo()

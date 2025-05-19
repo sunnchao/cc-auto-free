@@ -4,7 +4,7 @@ import json
 import sys
 from colorama import Fore, Style
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple
 
 from exit_cursor import ExitCursor
 import go_cursor_help
@@ -23,7 +23,11 @@ from src.utils.browser_utils import BrowserManager
 from get_email_code import EmailVerificationHandler
 from logo import print_logo
 from src.utils.config import Config
-from datetime import datetime
+import hashlib
+import uuid
+import base64
+import requests
+
 
 # 定义 EMOJI 字典
 EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
@@ -31,10 +35,11 @@ EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
 
 class VerificationStatus(Enum):
     """验证状态枚举"""
-
+    SIGN_UP = "@name=first_name"
     PASSWORD_PAGE = "@name=password"
     CAPTCHA_PAGE = "@data-index=0"
     ACCOUNT_SETTINGS = "Account Settings"
+    TOKEN_REFRESH = "You're currently logged in as:"
 
 
 class TurnstileError(Exception):
@@ -73,13 +78,19 @@ def save_screenshot(tab, stage: str, timestamp: bool = True) -> None:
         logging.warning(f"截图保存失败: {str(e)}")
 
 
-def check_verification_success(tab) -> Optional[VerificationStatus]:
+def check_verification_success(tab, default_status=None) -> Optional[VerificationStatus]:
     """
     检查验证是否成功
 
     Returns:
         VerificationStatus: 验证成功时返回对应状态，失败返回 None
     """
+    if default_status:
+        if tab.ele(default_status.value):
+            logging.info(f"验证成功 - 已到达{default_status.name}页面")
+            return default_status
+        else:
+            return None
     for status in VerificationStatus:
         if tab.ele(status.value):
             logging.info(f"验证成功 - 已到达{status.name}页面")
@@ -163,44 +174,137 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
         raise TurnstileError(error_msg)
 
 
-def get_cursor_session_token(tab, max_attempts=3, retry_interval=2):
+def get_cursor_session_token(tab=None, max_attempts=3, retry_interval=2) -> Tuple[Optional[str], Optional[str]]:
     """
-    获取Cursor会话token，带有重试机制
-    :param tab: 浏览器标签页
-    :param max_attempts: 最大尝试次数
-    :param retry_interval: 重试间隔(秒)
-    :return: session token 或 None
+    获取Cursor会话令牌
+
+    Args:
+        tab: 浏览器标签对象
+        max_attempts: 最大尝试次数
+        retry_interval: 重试间隔(秒)
+
+    Returns:
+        Tuple[Optional[str], Optional[str]]: (accessToken, refreshToken)
     """
-    logging.info("开始获取cookie")
+
+    params = generate_auth_params()
+    url = f"https://www.cursor.com/cn/loginDeepControl?challenge={params['n']}&uuid={params['r']}&mode=login"
+    tab.get(url)
+
     attempts = 0
 
     while attempts < max_attempts:
-        try:
-            cookies = tab.cookies()
-            for cookie in cookies:
-                if cookie.get("name") == "WorkosCursorSessionToken":
-                    return cookie["value"].split("%3A%3A")[1]
+        # 检查是否到达登录界面
+        status = check_verification_success(tab, VerificationStatus.TOKEN_REFRESH)
+        if status:
+            break
 
-            attempts += 1
-            if attempts < max_attempts:
-                logging.warning(
-                    f"第 {attempts} 次尝试未获取到CursorSessionToken，{retry_interval}秒后重试..."
-                )
-                time.sleep(retry_interval)
-            else:
-                logging.error(
-                    f"已达到最大尝试次数({max_attempts})，获取CursorSessionToken失败"
-                )
+        attempts += 1
+
+        if attempts < max_attempts:
+            time.sleep(retry_interval)
+
+    time.sleep(2)
+
+    # 使用精确的CSS选择器在Python中查找元素并点击
+    tab.run_js("""
+           try {
+               const button = document.querySelectorAll(".min-h-screen")[1].querySelectorAll(".gap-4")[1].querySelectorAll("button")[1];
+               if (button) {
+                   button.click();
+                   return true;
+               } else {
+                   return false;
+               }
+           } catch (e) {
+               console.error("选择器错误:", e);
+               return false;
+           }
+       """)
+
+    _, access_token, refresh_token = poll_for_login_result(params["r"], params["s"])
+
+    # 更新实例变量
+    if access_token and refresh_token:
+        return access_token, refresh_token
+
+    return None, None
+
+
+def generate_auth_params():
+    # 1. 生成 code_verifier (t) - 32字节随机数
+    t = os.urandom(32)  # 等效于 JS 的 crypto.getRandomValues(new Uint8Array(32))
+
+    # 2. 生成 s: 对 t 进行 Base64 URL 安全编码
+    def tb(data):
+        # Base64 URL 安全编码（替换 +/ 为 -_，去除末尾的 =）
+        return base64.urlsafe_b64encode(data).decode().rstrip('=')
+
+    s = tb(t)  # 对应 JS 的 this.tb(t)
+
+    # 3. 生成 n: 对 s 进行 SHA-256 哈希 + Base64 URL 编码
+    def ub(s_str):
+        # 等效于 JS 的 TextEncoder().encode(s) + SHA-256
+        return hashlib.sha256(s_str.encode()).digest()
+
+    hashed = ub(s)
+    n = tb(hashed)  # 对应 JS 的 this.tb(new Uint8Array(hashed))
+
+    # 4. 生成 r: UUID v4
+    r = str(uuid.uuid4())  # 对应 JS 的 $t()
+
+    return {
+        "t": t.hex(),  # 原始字节转十六进制字符串（方便查看）
+        "s": s,
+        "n": n,
+        "r": r
+    }
+
+def poll_for_login_result(uuid: str, challenge: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    轮询获取登录结果
+
+    Args:
+        uuid: 身份验证UUID
+        challenge: 验证挑战码
+
+    Returns:
+        Tuple[Optional[str], Optional[str], Optional[str]]: (authId, accessToken, refreshToken)
+    """
+    poll_url = f"https://api2.cursor.sh/auth/poll?uuid={uuid}&verifier={challenge}"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    max_attempts = 30
+    attempt = 0
+
+    while attempt < max_attempts:
+        logging.info("polling_login_result")
+        try:
+            response = requests.get(poll_url, headers=headers)
+
+            if response.status_code == 404:
+                logging.info("login_not_completed")
+            elif response.status_code == 200:
+                data = response.json()
+
+                if "authId" in data and "accessToken" in data and "refreshToken" in data:
+                    logging.info("login_successful")
+                    logging.debug(f"Auth ID: {data['authId']}")
+                    logging.debug(f"Access Token: {data['accessToken'][:10]}...")
+                    logging.debug(f"Refresh Token: {data['refreshToken'][:10]}...")
+                    return data['authId'], data['accessToken'], data['refreshToken']
 
         except Exception as e:
-            logging.error(f"获取cookie失败: {str(e)}")
-            attempts += 1
-            if attempts < max_attempts:
-                logging.info(f"将在 {retry_interval} 秒后重试...")
-                time.sleep(retry_interval)
+            logging.error(f"Error during polling: {e}")
 
-    return None
+        attempt += 1
+        time.sleep(2)  # 每 2 秒轮询一次
 
+    if attempt >= max_attempts:
+        logging.error("polling_timed_out")
+
+    return None, None, None
 
 def update_cursor_auth(email=None, access_token=None, refresh_token=None):
     """
@@ -514,9 +618,12 @@ if __name__ == "__main__":
 
         if sign_up_account(browser, tab):
             logging.info("正在获取会话令牌...")
-            token = get_cursor_session_token(tab)
-            if token:
-                logging.info(f"更新认证信息...{token}")
+            access_token, refresh_token = get_cursor_session_token(tab)
+            if access_token and refresh_token:
+                logging.info(f"更新认证信息...")
+                logging.info(f"{access_token}")
+                logging.info(f"更新认证信息...{refresh_token}")
+                logging.info(f"{refresh_token}")
                 # update_cursor_auth(
                 #     email=account, access_token=token, refresh_token=token
                 # )

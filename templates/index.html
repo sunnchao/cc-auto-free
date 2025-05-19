@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cursor Accounts 管理系统</title>
+    <!-- 引入Bootstrap5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- 引入FontAwesome图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f5f8fa;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .token-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .copy-btn {
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .search-container {
+            width: 100%;
+            max-width: 400px;
+        }
+        .usage-badge {
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background-color: #e9f5ff;
+            color: #0d6efd;
+            font-weight: 500;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 50px 0;
+        }
+        .empty-state i {
+            font-size: 4rem;
+            color: #dee2e6;
+            margin-bottom: 20px;
+        }
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+        .details-toggle {
+            cursor: pointer;
+        }
+        .account-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+        .refresh-btn {
+            margin-left: 10px;
+        }
+        .token-result {
+            word-break: break-all;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-container">
+            <h1 class="mb-0"><i class="fas fa-key text-primary me-2"></i>Cursor Accounts 管理系统</h1>
+            <div class="d-flex">
+                <div class="search-container">
+                    <div class="input-group">
+                        <input type="text" id="searchInput" class="form-control" placeholder="搜索邮箱或使用信息...">
+                        <button class="btn btn-primary" type="button" id="searchButton">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <button id="refreshButton" class="btn btn-outline-primary refresh-btn">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+            </div>
+        </div>
+        
+        <!-- 添加获取Token卡片 -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-sync-alt me-2"></i>获取Cursor Token</h5>
+            </div>
+            <div class="card-body">
+                <form id="getTokenForm">
+                    <div class="row">
+                        <div class="col-md-5 mb-3">
+                            <label for="tokenEmail" class="form-label">邮箱地址</label>
+                            <input type="email" class="form-control" id="tokenEmail" required placeholder="请输入Cursor账号邮箱">
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label for="tokenPassword" class="form-label">密码</label>
+                            <input type="password" class="form-control" id="tokenPassword" required placeholder="请输入Cursor账号密码">
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success w-100" id="getTokenButton">
+                                <span class="spinner-border spinner-border-sm d-none" id="tokenSpinner" role="status" aria-hidden="true"></span>
+                                <span id="tokenButtonText">获取Token</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div class="token-result" id="tokenResult">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h6 class="mb-2">Token结果:</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary copy-token-result-btn me-2">
+                                <i class="fas fa-copy"></i> 复制
+                            </button>
+                            <button class="btn btn-sm btn-success save-token-btn">
+                                <i class="fas fa-save"></i> 保存到数据库
+                            </button>
+                        </div>
+                    </div>
+                    <code id="tokenResultText"></code>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>账号列表</h5>
+                    <span class="badge bg-light text-dark" id="accountCount">加载中...</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="loadingSpinner" class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+                <div id="accountsTableContainer">
+                    <table class="table table-hover mb-0" id="accountsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>邮箱</th>
+                                <th>密码</th>
+                                <th>Token</th>
+                                <th>使用信息</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody">
+                            <!-- 数据将由JavaScript动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <i class="fas fa-database"></i>
+                    <h4>暂无账号数据</h4>
+                    <p class="text-muted">数据库中没有找到任何账号信息</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>API 接口说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="fw-bold">获取所有账号:</h6>
+                    <div class="d-flex align-items-center">
+                        <code class="bg-light p-2 rounded">/api/accounts</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" data-url="/api/accounts">
+                            <i class="fas fa-copy"></i> 复制
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="fw-bold">获取单个账号:</h6>
+                    <div class="d-flex align-items-center">
+                        <code class="bg-light p-2 rounded">/api/account/{id}</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" data-url="/api/account/1">
+                            <i class="fas fa-copy"></i> 复制
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="fw-bold">搜索账号:</h6>
+                    <div class="d-flex align-items-center">
+                        <code class="bg-light p-2 rounded">/api/search?q={搜索词}</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" data-url="/api/search?q=example">
+                            <i class="fas fa-copy"></i> 复制
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <h6 class="fw-bold">获取Cursor Token:</h6>
+                    <div class="d-flex align-items-center">
+                        <code class="bg-light p-2 rounded">POST /api/get_cursor_token</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" data-url="/api/get_cursor_token">
+                            <i class="fas fa-copy"></i> 复制
+                        </button>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            请求体示例: <br>
+                            <code>{ "email": "your_email@example.com", "password": "your_password" }</code>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入Bootstrap和相关JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- 引入自定义JS -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html> 

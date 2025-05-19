@@ -3,3 +3,6 @@ colorama==0.4.6
 python-dotenv
 pyinstaller
 requests
+aiosqlite
+tabulate
+flask

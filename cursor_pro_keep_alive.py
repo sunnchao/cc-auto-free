@@ -670,7 +670,7 @@ if __name__ == "__main__":
             if access_token and refresh_token:
                 logging.info(f"更新认证信息...")
                 logging.info(f"{access_token}")
-                logging.info(f"更新认证信息...{refresh_token}")
+                logging.info(f"更新认证信息...")
                 logging.info(f"{refresh_token}")
                 # update_cursor_auth(
                 #     email=account, access_token=token, refresh_token=token

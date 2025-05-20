@@ -44,6 +44,8 @@ class Config:
             self.imap_access_token = os.getenv("IMAP_ACCESS_TOKEN", "").strip()
             self.imap_client_secret = os.getenv("IMAP_CLIENT_SECRET", "").strip()
             self.imap_oauth2_token_url = os.getenv("IMAP_OAUTH2_TOKEN_URL", "").strip()
+            # IMAP 完成配置 邮箱 ---- 密码 ---- RefreshToken ---- Client ID
+            self.imap_full = os.getenv("IMAP_FULL", "").strip()
 
         # 如果临时邮箱为 iCloud 邮箱，则需要配置 iCloud 邮箱的账号和密码
         if self.temp_mail == "icloud":
@@ -106,7 +108,15 @@ class Config:
                 
         # except Exception as e:
         #     logging.error(f"Email fetch error: {str(e)}")
-        
+        if self.imap_full:
+            # 切割
+            # IMAP 完成配置 邮箱 ---- 密码 ---- RefreshToken ---- Client ID
+            imap_full = self.imap_full.strip().split("----")
+            self.imap_user = imap_full[0]
+            self.imap_pass = imap_full[1]
+            self.imap_refresh_token = imap_full[2]
+            self.imap_client_id = imap_full[3]
+
         return {
             "imap_server": self.imap_server,
             "imap_port": self.imap_port,
